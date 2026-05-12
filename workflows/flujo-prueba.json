@@ -1,0 +1,479 @@
+{
+  "name": "chatboot telegram",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        -992,
+        -96
+      ],
+      "id": "9746b6b1-cd20-4d17-b3a0-a6752355548e",
+      "name": "Telegram Trigger",
+      "webhookId": "854e4cb1-d25f-409b-9a9b-b1a2b8afc8f2",
+      "credentials": {
+        "telegramApi": {
+          "id": "EHTnANKkLOBx1XJS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.output }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        944,
+        -48
+      ],
+      "id": "1e1368cd-f687-44f0-b02d-11c7ae4fdb69",
+      "name": "Send a text message",
+      "webhookId": "5deea623-18ba-4dec-b4ba-6a499372e307",
+      "credentials": {
+        "telegramApi": {
+          "id": "EHTnANKkLOBx1XJS",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4o",
+          "mode": "list",
+          "cachedResultName": "gpt-4o"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        192,
+        176
+      ],
+      "id": "ab3b2887-969e-4462-bd99-6438d26155ca",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "fNNiRU6Jl101ASO9",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=## Persona\nEres \"TSI-Assist\", un asistente virtual experto en tecnología y proyectos de instalación de redes para la empresa TSI. Eres amable, profesional y muy eficiente.\n\n## Contexto\nEstás hablando con {{ $nodes[\"verificar cliente\"].json[0]?.nombre_mostrado || $nodes[\"Crear Cliente\"].json[0]?.nombre_mostrado }}, un cliente que contacta por Telegram.\n\n## Objetivo Principal\nTu misión es entender la necesidad del cliente, proporcionarle información precisa sobre nuestros productos y, si el proyecto es complejo, guiarlo para agendar una visita técnica.\n\n## Instrucciones\n- Siempre dirígete al cliente por su nombre si lo conoces.\n- Utiliza tu herramienta \"Buscar productos\" para responder cualquier pregunta sobre especificaciones, precio o stock de los productos.\n- Si no encuentras un producto, informa amablemente que no tienes información sobre ese artículo.\n- No inventes información. Si no sabes algo, di que necesitas consultar con un especialista humano.\n\n## Mensaje del Cliente\n{{ $('Telegram Trigger').item.json.message.text }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        304,
+        -80
+      ],
+      "id": "41a73d32-68ad-42d3-9cfb-75c025629352",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        352,
+        176
+      ],
+      "id": "61746ed5-53d8-4376-b13d-485087813735",
+      "name": "Simple Memory"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT * FROM products;",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySqlTool",
+      "typeVersion": 2.5,
+      "position": [
+        528,
+        176
+      ],
+      "id": "90e06c5d-3f53-43b8-bbff-554fb4df50f3",
+      "name": "Buscar productos",
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "clientes",
+          "mode": "list",
+          "cachedResultName": "clientes"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "telegram_id",
+              "value": "={{ $('Telegram Trigger').item.json.message.from.id }}"
+            },
+            {
+              "column": "nombre_mostrado",
+              "value": "={{ $('Telegram Trigger').item.json.message.from.first_name }}"
+            },
+            {
+              "column": "idioma",
+              "value": "={{ $('Telegram Trigger').item.json.message.from.language_code }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -256,
+        -256
+      ],
+      "id": "2c9d3f17-1e25-496c-a983-b4302e3a8ccc",
+      "name": "crear cliente",
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM clientes WHERE telegram_id = {{ $json.message.from.id }};",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -688,
+        -80
+      ],
+      "id": "8078393f-09fa-4b00-a0b4-0ec8c156ff97",
+      "name": "verificar cliente",
+      "alwaysOutputData": true,
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "af021d6b-4548-4cb4-9e9f-09a7bbd933ab",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+              "rightValue": "={{ $('Telegram Trigger').item.json.message.from.id }}",
+              "operator": {
+                "type": "number",
+                "operation": "equals"
+              }
+            },
+            {
+              "id": "434fea6d-f063-436f-8698-af4ee1eeafdc",
+              "leftValue": "",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "equals",
+                "name": "filter.operator.equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -464,
+        -64
+      ],
+      "id": "ceba183e-b303-4016-9fc3-1eb6a01f1b9b",
+      "name": "if"
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "conversations",
+          "mode": "list",
+          "cachedResultName": "conversations"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "cliente_id",
+              "value": "={{ $nodes[\"Obtener id del cliente\"].json.id }}"
+            },
+            {
+              "column": "role",
+              "value": "cliente"
+            },
+            {
+              "column": "message",
+              "value": "={{ $('Telegram Trigger').item.json.message.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        128,
+        -256
+      ],
+      "id": "eec1ba8b-5c18-4ddf-b78d-5b3f6f4ffcb6",
+      "name": "Guardar mensaje",
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT id FROM clientes WHERE telegram_id = {{ $('Telegram Trigger').item.json.message.from.id }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -48,
+        -256
+      ],
+      "id": "f5be95fd-78e2-4feb-b11c-f78399a8d485",
+      "name": "Obtener id del cliente",
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "__rl": true,
+          "value": "conversations",
+          "mode": "list",
+          "cachedResultName": "conversations"
+        },
+        "dataMode": "defineBelow",
+        "valuesToSend": {
+          "values": [
+            {
+              "column": "cliente_id",
+              "value": "={{ $nodes[\"verificar cliente\"].json.id }}"
+            },
+            {
+              "column": "=role",
+              "value": "=cliente"
+            },
+            {
+              "column": "message",
+              "value": "={{ $('Telegram Trigger').item.json.message.text }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        -96,
+        -48
+      ],
+      "id": "53add5b5-fae3-4c6d-8ea2-2c7cdf276c2a",
+      "name": "guardar mesnsaje2",
+      "credentials": {
+        "mySql": {
+          "id": "21u8Vxr2QELSfRsp",
+          "name": "MySQL account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "verificar cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar productos": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "crear cliente": {
+      "main": [
+        [
+          {
+            "node": "Obtener id del cliente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "verificar cliente": {
+      "main": [
+        [
+          {
+            "node": "if",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "if": {
+      "main": [
+        [
+          {
+            "node": "crear cliente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "guardar mesnsaje2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar mensaje": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Obtener id del cliente": {
+      "main": [
+        [
+          {
+            "node": "Guardar mensaje",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "guardar mesnsaje2": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "04af4a7d-9dfc-460e-b4ef-da55508a4ca4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "976e238438a9fd081c09cffe37941e4ff34c33c79cf6d10df3ebad9d91cb79fe"
+  },
+  "id": "LqYXSSurYbupOxP7",
+  "tags": []
+}
